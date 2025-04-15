@@ -12,7 +12,12 @@ ad = JwtIssuerConfig(
 )
 
 app = FastAPI()
-app.add_middleware(JwtAuthMiddleware, issuers=[ad], bypass_paths=["/public"])
+app.add_middleware(
+    JwtAuthMiddleware,
+    issuers=[ad],
+    allow_prefixes=["/public"],
+    protect_prefixes=["/secure"],
+)
 
 
 @app.get("/public")

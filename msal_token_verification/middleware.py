@@ -11,37 +11,45 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
         self,
         app,
         issuers: list[JwtIssuerConfig],
+        *,
+        allow_prefixes: list[str] = None,
+        protect_prefixes: list[str] = None,
         header_key: str = "Authorization",
-        bypass_paths: list[str] = None,
     ):
         super().__init__(app)
         self.issuers = issuers
+        self.allow_prefixes = allow_prefixes or []
+        self.protect_prefixes = protect_prefixes or []
         self.header_key = header_key
-        self.bypass_paths = bypass_paths or []
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in self.bypass_paths:
+        path = request.url.path
+        if any(path.startswith(prefix) for prefix in self.allow_prefixes):
             return await call_next(request)
-        auth_header = request.headers.get(self.header_key)
-        if not auth_header or not auth_header.startswith("Bearer "):
+
+        if any(path.startswith(prefix) for prefix in self.protect_prefixes):
+            auth_header = request.headers.get(self.header_key)
+            if not auth_header or not auth_header.startswith("Bearer "):
+                return JSONResponse(
+                    status_code=401, content={"detail": "Missing or invalid token"}
+                )
+
+            token = auth_header.split(" ")[1]
+            try:
+                unverified = jwt.get_unverified_claims(token)
+                issuer = unverified.get("iss")
+                for config in self.issuers:
+                    if config.issuer == issuer:
+                        payload = decode_jwt(token, config)
+                        request.state.user = payload
+                        return await call_next(request)
+            except JWTError:
+                return JSONResponse(
+                    status_code=401, content={"detail": "Token validation failed"}
+                )
+
             return JSONResponse(
-                status_code=401, content={"detail": "Missing or invalid token"}
+                status_code=401, content={"detail": "Issuer not recognized"}
             )
 
-        token = auth_header.split(" ")[1]
-        try:
-            unverified = jwt.get_unverified_claims(token)
-            issuer = unverified.get("iss")
-            for config in self.issuers:
-                if config.issuer == issuer:
-                    payload = decode_jwt(token, config)
-                    request.state.user = payload
-                    return await call_next(request)
-        except JWTError:
-            return JSONResponse(
-                status_code=401, content={"detail": "Token validation failed"}
-            )
-
-        return JSONResponse(
-            status_code=401, content={"detail": "Issuer not recognized"}
-        )
+        return await call_next(request)
