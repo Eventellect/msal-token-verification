@@ -15,7 +15,6 @@ app = FastAPI()
 app.add_middleware(
     JwtAuthMiddleware,
     issuers=[ad],
-    allow_prefixes=["/public"],
     protect_prefixes=["/secure"],
 )
 

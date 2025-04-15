@@ -16,6 +16,11 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
         protect_prefixes: list[str] = None,
         header_key: str = "Authorization",
     ):
+        if allow_prefixes and protect_prefixes:
+            raise ValueError(
+                "allow_prefixes and protect_prefixes cannot be used together"
+            )
+
         super().__init__(app)
         self.issuers = issuers
         self.allow_prefixes = allow_prefixes or []
@@ -24,32 +29,34 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if any(path.startswith(prefix) for prefix in self.allow_prefixes):
+
+        is_allowed = any(path.startswith(prefix) for prefix in self.allow_prefixes) or (
+            self.protect_prefixes
+            and not any(path.startswith(prefix) for prefix in self.protect_prefixes)
+        )
+        if is_allowed:
             return await call_next(request)
 
-        if any(path.startswith(prefix) for prefix in self.protect_prefixes):
-            auth_header = request.headers.get(self.header_key)
-            if not auth_header or not auth_header.startswith("Bearer "):
-                return JSONResponse(
-                    status_code=401, content={"detail": "Missing or invalid token"}
-                )
-
-            token = auth_header.split(" ")[1]
-            try:
-                unverified = jwt.get_unverified_claims(token)
-                issuer = unverified.get("iss")
-                for config in self.issuers:
-                    if config.issuer == issuer:
-                        payload = decode_jwt(token, config)
-                        request.state.user = payload
-                        return await call_next(request)
-            except JWTError:
-                return JSONResponse(
-                    status_code=401, content={"detail": "Token validation failed"}
-                )
-
+        auth_header = request.headers.get(self.header_key)
+        if not auth_header or not auth_header.startswith("Bearer "):
             return JSONResponse(
-                status_code=401, content={"detail": "Issuer not recognized"}
+                status_code=401, content={"detail": "Missing or invalid token"}
             )
 
-        return await call_next(request)
+        token = auth_header.split(" ")[1]
+        try:
+            unverified = jwt.get_unverified_claims(token)
+            issuer = unverified.get("iss")
+            for config in self.issuers:
+                if config.issuer == issuer:
+                    payload = decode_jwt(token, config)
+                    request.state.user = payload
+                    return await call_next(request)
+        except JWTError:
+            return JSONResponse(
+                status_code=401, content={"detail": "Token validation failed"}
+            )
+
+        return JSONResponse(
+            status_code=401, content={"detail": "Issuer not recognized"}
+        )
