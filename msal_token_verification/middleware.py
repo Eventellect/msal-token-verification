@@ -16,11 +16,6 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
         protect_prefixes: list[str] = None,
         header_key: str = "Authorization",
     ):
-        if allow_prefixes and protect_prefixes:
-            raise ValueError(
-                "allow_prefixes and protect_prefixes cannot be used together"
-            )
-
         super().__init__(app)
         self.issuers = issuers
         self.allow_prefixes = allow_prefixes or []
@@ -60,3 +55,23 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
         return JSONResponse(
             status_code=401, content={"detail": "Issuer not recognized"}
         )
+
+
+def register_jwt_middleware(
+    app,
+    *,
+    issuers,
+    allow_prefixes=None,
+    protect_prefixes=None,
+    header_key="Authorization",
+):
+    if allow_prefixes and protect_prefixes:
+        raise ValueError("allow_prefixes and protect_prefixes cannot be used together")
+
+    app.add_middleware(
+        JwtAuthMiddleware,
+        issuers=issuers,
+        allow_prefixes=allow_prefixes,
+        protect_prefixes=protect_prefixes,
+        header_key=header_key,
+    )

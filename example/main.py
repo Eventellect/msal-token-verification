@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Depends, Request
-from msal_token_verification.middleware import JwtAuthMiddleware
+from fastapi import FastAPI, Request
+from msal_token_verification.middleware import register_jwt_middleware
 from msal_token_verification.config import JwtIssuerConfig
 import uvicorn
 
@@ -12,9 +12,10 @@ ad = JwtIssuerConfig(
 )
 
 app = FastAPI()
-app.add_middleware(
-    JwtAuthMiddleware,
+register_jwt_middleware(
+    app,
     issuers=[ad],
+    # allow_prefixes=["/public"],
     protect_prefixes=["/secure"],
 )
 
