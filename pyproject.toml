@@ -1,0 +1,20 @@
+[project]
+name = "msal-token-verification"
+version = "0.1.0"
+description = "MSAL Token Verification"
+authors = [
+    { name = "Noah Yusen", email = "nyusen@eventellect.com" }
+]
+license = "MIT"
+dependencies = [
+    "fastapi",
+    "python-jose[cryptography]",
+    "requests",
+    "pydantic"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+    
