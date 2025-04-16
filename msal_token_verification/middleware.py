@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from msal_token_verification.config import JwtIssuerConfig
 from msal_token_verification.core import decode_jwt
+import fnmatch
 
 
 class JwtAuthMiddleware(BaseHTTPMiddleware):
@@ -26,9 +27,15 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
-        is_allowed = any(path.startswith(prefix) for prefix in self.allow_prefixes) or (
+        is_allowed = any(
+            fnmatch.fnmatch(path, pattern) if '*' in pattern else path == pattern
+            for pattern in self.allow_prefixes
+        ) or (
             self.protect_prefixes
-            and not any(path.startswith(prefix) for prefix in self.protect_prefixes)
+            and not any(
+                fnmatch.fnmatch(path, pattern) if '*' in pattern else path == pattern
+                for pattern in self.protect_prefixes
+            )
         )
         if is_allowed:
             return await call_next(request)

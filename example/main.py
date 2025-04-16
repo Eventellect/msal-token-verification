@@ -15,20 +15,36 @@ app = FastAPI()
 register_jwt_middleware(
     app,
     issuers=[ad],
-    # allow_prefixes=["/public"],
-    protect_prefixes=["/secure"],
+    allow_prefixes=["/", "/api/auth/*", "/public"],
+    # protect_prefixes=["/secure"],
 )
 
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+@app.get("/api/auth/me")
+async def auth_me():
+    return {"message": "Auth Me"}
+
+@app.get("/api/auth/you")
+async def auth_you():
+    return {"message": "Auth You"}
+
+@app.get("/api/new")
+async def new():
+    return {"message": "New"}
 
 @app.get("/public")
 async def public_route():
     return {"message": "Public"}
 
-
 @app.get("/secure")
 async def secure_route(request: Request):
     user = request.state.user
     return {"message": "Authenticated", "user": user}
+
+
 
 
 if __name__ == "__main__":
