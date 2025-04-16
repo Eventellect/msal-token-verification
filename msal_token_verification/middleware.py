@@ -1,5 +1,6 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from msal_token_verification.config import JwtIssuerConfig
@@ -58,12 +59,12 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
 
 
 def register_jwt_middleware(
-    app,
+    app: FastAPI,
     *,
-    issuers,
-    allow_prefixes=None,
-    protect_prefixes=None,
-    header_key="Authorization",
+    issuers: list[JwtIssuerConfig],
+    allow_prefixes: list[str] = None,
+    protect_prefixes: list[str] = None,
+    header_key: str = "Authorization",
 ):
     if allow_prefixes and protect_prefixes:
         raise ValueError("allow_prefixes and protect_prefixes cannot be used together")
