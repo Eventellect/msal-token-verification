@@ -1,3 +1,6 @@
+import fnmatch
+from typing import Optional
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from fastapi import FastAPI
@@ -5,7 +8,6 @@ from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from msal_token_verification.config import JwtIssuerConfig
 from msal_token_verification.core import decode_jwt
-import fnmatch
 
 
 class JwtAuthMiddleware(BaseHTTPMiddleware):
@@ -16,37 +18,47 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
         *,
         allow_prefixes: list[str] = None,
         protect_prefixes: list[str] = None,
-        header_key: str = "Authorization",
     ):
         super().__init__(app)
         self.issuers = issuers
         self.allow_prefixes = allow_prefixes or []
         self.protect_prefixes = protect_prefixes or []
-        self.header_key = header_key
+
+    def get_token(self, request: Request) -> Optional[str]:
+        # Check Authorization
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            return auth_header.split(" ")[1]
+
+        # Check Cookie
+        auth_token = request.cookies.get("auth_token")
+        if auth_token:
+            return auth_token
+
+        return None
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
         is_allowed = any(
-            fnmatch.fnmatch(path, pattern) if '*' in pattern else path == pattern
+            fnmatch.fnmatch(path, pattern) if "*" in pattern else path == pattern
             for pattern in self.allow_prefixes
         ) or (
             self.protect_prefixes
             and not any(
-                fnmatch.fnmatch(path, pattern) if '*' in pattern else path == pattern
+                fnmatch.fnmatch(path, pattern) if "*" in pattern else path == pattern
                 for pattern in self.protect_prefixes
             )
         )
         if is_allowed:
             return await call_next(request)
 
-        auth_header = request.headers.get(self.header_key)
-        if not auth_header or not auth_header.startswith("Bearer "):
+        token = self.get_token(request)
+        if not token:
             return JSONResponse(
                 status_code=401, content={"detail": "Missing or invalid token"}
             )
 
-        token = auth_header.split(" ")[1]
         try:
             unverified = jwt.get_unverified_claims(token)
             issuer = unverified.get("iss")
@@ -71,7 +83,6 @@ def register_jwt_middleware(
     issuers: list[JwtIssuerConfig],
     allow_prefixes: list[str] = None,
     protect_prefixes: list[str] = None,
-    header_key: str = "Authorization",
 ):
     if allow_prefixes and protect_prefixes:
         raise ValueError("allow_prefixes and protect_prefixes cannot be used together")
@@ -81,5 +92,4 @@ def register_jwt_middleware(
         issuers=issuers,
         allow_prefixes=allow_prefixes,
         protect_prefixes=protect_prefixes,
-        header_key=header_key,
     )
