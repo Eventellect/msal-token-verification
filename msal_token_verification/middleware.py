@@ -26,14 +26,23 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
 
     def get_token(self, request: Request) -> Optional[str]:
         # Check Authorization
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            return auth_header.split(" ")[1]
+        auth_value = None
 
-        # Check Cookie
-        auth_token = request.cookies.get("auth_token")
-        if auth_token:
-            return auth_token
+        # Case-insensitive check for header name
+        for key, value in request.headers.items():
+            if key.lower() == "authorization":
+                auth_value = value
+                break
+
+        if auth_value:
+            # Case-insensitive check for Bearer prefix
+            if auth_value.lower().startswith("bearer "):
+                return auth_value[len("bearer ") :].strip()
+
+        # # Check Cookie
+        # for key, value in request.cookies.items():
+        #     if key.lower() == "auth_token":
+        #         return value
 
         return None
 
@@ -59,21 +68,16 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
                 status_code=401, content={"detail": "Missing or invalid token"}
             )
 
-        try:
-            unverified = jwt.get_unverified_claims(token)
-            issuer = unverified.get("iss")
-            for config in self.issuers:
-                if config.issuer == issuer:
-                    payload = decode_jwt(token, config)
-                    request.state.user = payload
-                    return await call_next(request)
-        except JWTError:
-            return JSONResponse(
-                status_code=401, content={"detail": "Token validation failed"}
-            )
+        for config in self.issuers:
+            try:
+                payload = decode_jwt(token, config)
+                request.state.user = payload
+                return await call_next(request)
+            except JWTError:
+                continue
 
         return JSONResponse(
-            status_code=401, content={"detail": "Issuer not recognized"}
+            status_code=401, content={"detail": "Missing or invalid token"}
         )
 
 
