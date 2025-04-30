@@ -73,7 +73,7 @@ class JwtAuthMiddleware(BaseHTTPMiddleware):
                 payload = decode_jwt(token, config)
                 request.state.user = payload
                 return await call_next(request)
-            except JWTError:
+            except Exception:
                 continue
 
         return JSONResponse(
